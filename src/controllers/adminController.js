@@ -43,6 +43,7 @@ async function unblock(req, res) {
   }
 }
 
+/** In-memory only; process restart clears. Persist to DB in production. */
 function addToBlacklist(req, res) {
   const { ip } = req.body;
   if (!ip) return res.status(400).json({ error: 'ip is required' });

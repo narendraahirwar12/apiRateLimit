@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
+/** Register: create user, return JWT. Password hashed in User model pre-save. */
 async function register(req, res) {
   try {
     const { username, email, password, role, tenantId } = req.body;
@@ -47,6 +48,7 @@ async function login(req, res) {
     }
 
     const user = await User.findOne({ email });
+    // Generic message to avoid user enumeration
     if (!user || !(await user.comparePassword(password))) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }

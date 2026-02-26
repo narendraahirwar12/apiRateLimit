@@ -6,7 +6,7 @@ const adminController = require('../controllers/adminController');
 
 const router = express.Router();
 
-// All protected routes require auth + user rate limit
+// Order matters: auth first, then IP limit, then per-user limit
 router.use(authenticate);
 router.use(ipRateLimiter);
 router.use(dynamicUserRateLimiter);
