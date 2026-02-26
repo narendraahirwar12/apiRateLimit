@@ -57,18 +57,19 @@ async function slidingWindowCheck(key: string, limit: number, windowMs: number):
   const resetTime = Math.ceil((now + windowMs) / 1000);
 
   const pipeline = redisClient.pipeline();
-  pipeline.zremrangebyscore(key, '-inf', windowStart);
-  pipeline.zcard(key);
-  pipeline.zadd(key, now, `${now}-${Math.random()}`);
-  pipeline.pexpire(key, windowMs);
+  pipeline.zremrangebyscore(key, '-inf', windowStart); // [0] expire entries hatao
+  pipeline.zadd(key, now, `${now}-${Math.random()}`); // [1] current request add karo PEHLE
+  pipeline.zcard(key);                                 // [2] ab accurate total count lo
+  pipeline.pexpire(key, windowMs);                     // [3] TTL refresh karo
 
   const results = await pipeline.exec();
-  const count = (results?.[1]?.[1] as number) || 0;
+  const count = (results?.[2]?.[1] as number) || 0;   // index 2 = zcard result
 
-  const remaining = Math.max(0, limit - count - 1);
+  const remaining = Math.max(0, limit - count);
 
-  if (count >= limit) {
-    await redisClient.zremrangebyscore(key, now, now + 1);
+  if (count > limit) {
+    // Limit exceed hua — abhi jo request add ki woh wapas hatao
+    await redisClient.zremrangebyscore(key, now, now);
 
     const violationKey = `violations:${key}`;
     const violations = await redisClient.incr(violationKey);
@@ -113,7 +114,8 @@ function createRateLimiter(options: RateLimiterOptions) {
   const { getKey, limit, windowMs = 60000, limitType = 'generic' } = options;
 
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    if (req.isWhitelisted) return next();
+    // Admin users are always whitelisted — no rate limits apply
+    if (req.isWhitelisted || req.user?.role === 'admin') return next();
 
     const key = getKey(req);
 
@@ -132,7 +134,7 @@ function createRateLimiter(options: RateLimiterOptions) {
         method: req.method,
         limitExceededReason: `BLOCKED - ${limitType}`,
         statusCode: 429,
-      }).catch(() => {});
+      }).catch(() => { });
 
       logger.warn(`Blocked request: ${key} on ${req.path}`);
 
@@ -157,7 +159,7 @@ function createRateLimiter(options: RateLimiterOptions) {
         method: req.method,
         limitExceededReason: `RATE_LIMIT_EXCEEDED - ${limitType} (${limit} req/${windowMs / 1000}s)`,
         statusCode: 429,
-      }).catch(() => {});
+      }).catch(() => { });
 
       logger.warn(`Rate limit exceeded: ${key} [${limitType}] on ${req.path}`);
 
@@ -224,7 +226,7 @@ export const ipGateMiddleware = async (req: Request, res: Response, next: NextFu
       method: req.method,
       limitExceededReason: 'BLACKLISTED_IP',
       statusCode: 403,
-    }).catch(() => {});
+    }).catch(() => { });
     res.status(403).json({ error: 'Access denied' });
     return;
   }
@@ -233,6 +235,14 @@ export const ipGateMiddleware = async (req: Request, res: Response, next: NextFu
     req.isWhitelisted = true;
   }
 
+  next();
+};
+
+/** Set isWhitelisted flag for admin users (must run after authenticate) */
+const adminWhitelistMiddleware = (req: Request, res: Response, next: NextFunction): void => {
+  if (req.user?.role === 'admin') {
+    req.isWhitelisted = true;
+  }
   next();
 };
 
@@ -248,11 +258,11 @@ export const auditLogger = (req: Request, res: Response, next: NextFunction): vo
         method: req.method,
         statusCode: res.statusCode,
         limitExceededReason: null,
-      }).catch(() => {});
+      }).catch(() => { });
     }
     return originalJson(body);
   };
   next();
 };
 
-export { redisClient, createRateLimiter };
+export { redisClient, createRateLimiter, adminWhitelistMiddleware };
