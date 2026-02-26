@@ -1,5 +1,5 @@
-const winston = require('winston');
-const path = require('path');
+import winston from 'winston';
+import path from 'path';
 
 const logger = winston.createLogger({
   level: 'info',
@@ -13,16 +13,16 @@ const logger = winston.createLogger({
       format: winston.format.combine(
         winston.format.colorize(),
         winston.format.simple()
-      )
+      ),
     }),
     new winston.transports.File({
       filename: path.join(__dirname, '../../logs/error.log'),
-      level: 'error'
+      level: 'error',
     }),
     new winston.transports.File({
-      filename: path.join(__dirname, '../../logs/combined.log')
+      filename: path.join(__dirname, '../../logs/combined.log'),
     }),
   ],
 });
 
-module.exports = logger;
+export default logger;

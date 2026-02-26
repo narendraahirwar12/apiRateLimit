@@ -2,10 +2,12 @@
   "name": "api-rate-limiter",
   "version": "1.0.0",
   "description": "API Rate Limiting & Abuse Prevention System",
-  "main": "src/app.js",
+  "main": "dist/src/app.js",
   "scripts": {
-    "start": "node src/app.js",
-    "dev": "nodemon src/app.js"
+    "build": "tsc",
+    "start": "node dist/src/app.js",
+    "dev": "ts-node-dev --respawn src/app.ts",
+    "seed": "ts-node migrations/0001_seed.ts"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -17,6 +19,13 @@
     "winston": "^3.11.0"
   },
   "devDependencies": {
-    "nodemon": "^3.0.2"
+    "@types/bcryptjs": "^2.4.6",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.5",
+    "@types/node": "^20.10.0",
+    "nodemon": "^3.0.2",
+    "ts-node": "^10.9.2",
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.3.0"
   }
 }

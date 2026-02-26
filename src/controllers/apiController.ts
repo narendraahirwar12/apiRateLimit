@@ -1,4 +1,6 @@
-function getReports(req, res) {
+import { Request, Response } from 'express';
+
+export function getReports(req: Request, res: Response): void {
   res.json({
     message: 'Reports data',
     user: req.user,
@@ -10,14 +12,14 @@ function getReports(req, res) {
   });
 }
 
-function getProfile(req, res) {
+export function getProfile(req: Request, res: Response): void {
   res.json({
     message: 'User profile',
     user: req.user,
   });
 }
 
-function getData(req, res) {
+export function getData(req: Request, res: Response): void {
   res.json({
     message: 'Protected data',
     timestamp: new Date(),
@@ -25,12 +27,10 @@ function getData(req, res) {
   });
 }
 
-function postData(req, res) {
+export function postData(req: Request, res: Response): void {
   res.status(201).json({
     message: 'Data created',
     payload: req.body,
     createdBy: req.user,
   });
 }
-
-module.exports = { getReports, getProfile, getData, postData };

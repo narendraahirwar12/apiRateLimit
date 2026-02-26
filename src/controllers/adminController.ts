@@ -1,10 +1,11 @@
-const AuditLog = require('../models/AuditLog');
-const RateLimit = require('../models/RateLimit');
+import { Request, Response } from 'express';
+import AuditLog from '../models/AuditLog';
+import RateLimit from '../models/RateLimit';
 
-async function getAuditLogs(req, res) {
+export async function getAuditLogs(req: Request, res: Response): Promise<void> {
   try {
     const { limit = 50, page = 1, userId, ip } = req.query;
-    const filter = {};
+    const filter: Record<string, any> = {};
     if (userId) filter.userId = userId;
     if (ip) filter.ip = ip;
 
@@ -16,21 +17,21 @@ async function getAuditLogs(req, res) {
 
     const total = await AuditLog.countDocuments(filter);
     res.json({ total, page: Number(page), limit: Number(limit), logs });
-  } catch (err) {
+  } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 }
 
-async function getRateLimits(req, res) {
+export async function getRateLimits(req: Request, res: Response): Promise<void> {
   try {
     const records = await RateLimit.find().sort({ updatedAt: -1 }).limit(100);
     res.json({ count: records.length, records });
-  } catch (err) {
+  } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 }
 
-async function unblock(req, res) {
+export async function unblock(req: Request, res: Response): Promise<void> {
   try {
     const key = decodeURIComponent(req.params.key);
     await RateLimit.updateOne(
@@ -38,24 +39,20 @@ async function unblock(req, res) {
       { $set: { blockedUntil: null, violations: 0 } }
     );
     res.json({ message: `Block removed for key: ${key}` });
-  } catch (err) {
+  } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 }
 
 /** In-memory only; process restart clears. Persist to DB in production. */
-function addToBlacklist(req, res) {
+export function addToBlacklist(req: Request, res: Response): void {
   const { ip } = req.body;
-  if (!ip) return res.status(400).json({ error: 'ip is required' });
+  if (!ip) {
+    res.status(400).json({ error: 'ip is required' });
+    return;
+  }
   const current = (process.env.BLACKLISTED_IPS || '').split(',').filter(Boolean);
   if (!current.includes(ip)) current.push(ip);
   process.env.BLACKLISTED_IPS = current.join(',');
   res.json({ message: `IP ${ip} blacklisted`, blacklist: current });
 }
-
-module.exports = {
-  getAuditLogs,
-  getRateLimits,
-  unblock,
-  addToBlacklist,
-};
