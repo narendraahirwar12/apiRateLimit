@@ -81,7 +81,7 @@ redis-cli ping   # Should return: PONG
 ### 5. Seed Test Users
 
 ```bash
-node seed.js
+node migrations/0001_seed.js
 ```
 
 Creates 4 test users:
