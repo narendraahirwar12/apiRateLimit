@@ -20,6 +20,4 @@ const rateLimitSchema = new mongoose.Schema<IRateLimit>(
   }
 );
 
-rateLimitSchema.index({ key: 1 });
-
 export default mongoose.model<IRateLimit>('RateLimit', rateLimitSchema) as Model<IRateLimit>;
