@@ -3,6 +3,21 @@ import { Request, Response, NextFunction } from 'express';
 import AuditLog from '../models/AuditLog';
 import logger from '../utils/logger';
 
+// ─── Extend Express Request with custom properties ────────────────────────────
+declare global {
+  namespace Express {
+    interface Request {
+      user?: {
+        userId: string;
+        role: string;
+        tenantId: string | null;
+        username: string;
+      };
+      isWhitelisted?: boolean;
+    }
+  }
+}
+
 // ─── Redis Client ─────────────────────────────────────────────────────────────
 const redisClient = new Redis({
   host: process.env.REDIS_HOST || '127.0.0.1',
@@ -15,10 +30,16 @@ redisClient.on('connect', () => logger.info('✅ Redis connected'));
 redisClient.on('error', (err: Error) => logger.error(`Redis error: ${err.message}`));
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const WHITELISTED_IPS = (process.env.WHITELISTED_IPS || '').split(',').map((ip: string) => ip.trim());
+// filter(Boolean) removes empty strings — prevents whitelist bypass bug when WHITELISTED_IPS= is empty
+const WHITELISTED_IPS = (process.env.WHITELISTED_IPS || '').split(',').map((ip: string) => ip.trim()).filter(Boolean);
 const MAX_VIOLATIONS = parseInt(process.env.MAX_VIOLATIONS_BEFORE_BLOCK || '3', 10);
 const BLOCK_FIRST = parseInt(process.env.BLOCK_DURATION_FIRST || '300', 10);
 const BLOCK_SECOND = parseInt(process.env.BLOCK_DURATION_SECOND || '900', 10);
+
+// ─── Helper: get reliable client IP ──────────────────────────────────────────
+function getClientIp(req: Request): string {
+  return (req.ip && req.ip.trim()) ? req.ip.trim() : (req.socket as any)?.remoteAddress || '::1';
+}
 
 interface SlidingWindowResult {
   allowed: boolean;
@@ -153,7 +174,7 @@ function createRateLimiter(options: RateLimiterOptions) {
 
 /** Per-IP rate limiter */
 export const ipRateLimiter = createRateLimiter({
-  getKey: (req) => `ip:${req.ip}`,
+  getKey: (req) => `ip:${getClientIp(req)}`,
   limit: parseInt(process.env.IP_LIMIT || '200', 10),
   windowMs: 60000,
   limitType: 'per-ip',
@@ -173,14 +194,14 @@ export const dynamicUserRateLimiter = async (req: Request, res: Response, next: 
     getKey: () => `user:${req.user!.userId}`,
     limit,
     windowMs: 60000,
-    limitType: `per-user-${req.user.role}`,
+    limitType: `per-user-${req.user!.role}`,
   })(req, res, next);
 };
 
 /** Endpoint-specific rate limiter factory */
 export const endpointLimiter = (limit: number, windowMs = 60000) =>
   createRateLimiter({
-    getKey: (req) => `endpoint:${req.method}:${req.path}:${req.ip}`,
+    getKey: (req) => `endpoint:${req.method}:${req.path}:${getClientIp(req)}`,
     limit,
     windowMs,
     limitType: `endpoint-${limit}`,
@@ -188,7 +209,7 @@ export const endpointLimiter = (limit: number, windowMs = 60000) =>
 
 /** IP Blacklist / Whitelist gate — must run first */
 export const ipGateMiddleware = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-  const clientIp = req.ip;
+  const clientIp = getClientIp(req);
 
   const blacklist = (process.env.BLACKLISTED_IPS || '')
     .split(',')
