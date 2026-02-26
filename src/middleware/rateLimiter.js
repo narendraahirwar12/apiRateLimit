@@ -14,17 +14,15 @@ redisClient.on('connect', () => logger.info('✅ Redis connected'));
 redisClient.on('error', (err) => logger.error(`Redis error: ${err.message}`));
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-// this will come from database in future
-const WHITELISTED_IPS = (process.env.WHITELISTED_IPS || '').split(',').map(ip => ip.trim());
+const WHITELISTED_IPS = (process.env.WHITELISTED_IPS || '').split(',').map(ip => ip.trim()).filter(Boolean);
 
 const MAX_VIOLATIONS = parseInt(process.env.MAX_VIOLATIONS_BEFORE_BLOCK) || 3;
 const BLOCK_FIRST = parseInt(process.env.BLOCK_DURATION_FIRST) || 300;   // 5 min
-const BLOCK_SECOND = parseInt(process.env.BLOCK_DURATION_SECOND) || 900;   // 15 min
+const BLOCK_SECOND = parseInt(process.env.BLOCK_DURATION_SECOND) || 900; // 15 min
 
 /**
  * Sliding Window Algorithm using Redis Sorted Sets
- * Each key stores request timestamps as a sorted set.
- * Old timestamps (outside window) are pruned on every check.
+ * FIX: zadd PEHLE, phir zcard — taaki count mein current request bhi include ho
  */
 async function slidingWindowCheck(key, limit, windowMs) {
   const now = Date.now();
@@ -32,19 +30,19 @@ async function slidingWindowCheck(key, limit, windowMs) {
   const resetTime = Math.ceil((now + windowMs) / 1000);
 
   const pipeline = redisClient.pipeline();
-  pipeline.zremrangebyscore(key, '-inf', windowStart); // prune old
-  pipeline.zcard(key);                                  // count in window
-  pipeline.zadd(key, now, `${now}-${Math.random()}`);  // add current request
-  pipeline.pexpire(key, windowMs);                      // auto-expire key
+  pipeline.zremrangebyscore(key, '-inf', windowStart); // [0] expire entries hatao
+  pipeline.zadd(key, now, `${now}-${Math.random()}`); // [1] current request PEHLE add karo
+  pipeline.zcard(key);                                 // [2] ab accurate total count lo
+  pipeline.pexpire(key, windowMs);                     // [3] TTL refresh karo
 
   const results = await pipeline.exec();
-  const count = results?.[1]?.[1] || 0; // count BEFORE adding current request
+  const count = results?.[2]?.[1] || 0; // index 2 = zcard result
 
-  const remaining = Math.max(0, limit - count - 1);
+  const remaining = Math.max(0, limit - count);
 
-  if (count >= limit) {
-    // Remove the request we just added (rejected)
-    await redisClient.zremrangebyscore(key, now, now + 1);
+  if (count > limit) {
+    // Limit exceed hua — abhi jo request add ki woh wapas hatao
+    await redisClient.zremrangebyscore(key, now, now);
 
     // Violation tracking
     const violationKey = `violations:${key}`;
@@ -59,7 +57,7 @@ async function slidingWindowCheck(key, limit, windowMs) {
       const blockDuration = blockCount > 1 ? BLOCK_SECOND : BLOCK_FIRST;
       const blockKey = `blocked:${key}`;
       await redisClient.set(blockKey, '1', 'EX', blockDuration);
-      await redisClient.del(violationKey); // reset violations after block
+      await redisClient.del(violationKey);
 
       logger.warn(`Progressive block applied: ${key} for ${blockDuration}s`);
     }
@@ -71,7 +69,7 @@ async function slidingWindowCheck(key, limit, windowMs) {
 }
 
 /**
- * Check if a key is currently blocked (TTL stored in Redis)
+ * Check if a key is currently blocked
  */
 async function isBlocked(key) {
   const ttl = await redisClient.ttl(`blocked:${key}`);
@@ -81,11 +79,12 @@ async function isBlocked(key) {
 
 /**
  * Factory: create rate limiter middleware
+ * FIX: Admin users bypass all rate limits
  */
 function createRateLimiter({ getKey, limit, windowMs = 60000, limitType = 'generic' }) {
   return async (req, res, next) => {
-    // Whitelisted IPs bypass all rate limiting
-    if (req.isWhitelisted) return next();
+    // Admin users aur whitelisted IPs — koi rate limit nahi
+    if (req.isWhitelisted || req.user?.role === 'admin') return next();
 
     const key = getKey(req);
 
@@ -95,7 +94,6 @@ function createRateLimiter({ getKey, limit, windowMs = 60000, limitType = 'gener
       res.set('X-RateLimit-Reset', result.reset);
     };
 
-    // ── Block check ───────────────────────────────────────────────────────────
     const blockStatus = await isBlocked(key);
     if (blockStatus.blocked) {
       await auditLog.create({
@@ -115,7 +113,6 @@ function createRateLimiter({ getKey, limit, windowMs = 60000, limitType = 'gener
       });
     }
 
-    // ── Sliding window check ──────────────────────────────────────────────────
     const result = await slidingWindowCheck(key, limit, windowMs);
     setHeaders(result);
 
@@ -156,7 +153,7 @@ const ipRateLimiter = createRateLimiter({
 
 /** Dynamic per-user limiter (reads role from JWT) */
 const dynamicUserRateLimiter = async (req, res, next) => {
-  if (!req.user) return next(); // no user → IP limit covers it
+  if (!req.user) return next();
   if (req.user.role === 'admin') return next(); // admin = unlimited
 
   const limit = req.user.role === 'paid'
@@ -184,7 +181,6 @@ const endpointLimiter = (limit, windowMs = 60000) =>
 const ipGateMiddleware = async (req, res, next) => {
   const clientIp = req.ip;
 
-  // Reload blacklist from env at runtime (allows /admin/blacklist to work)
   const blacklist = (process.env.BLACKLISTED_IPS || '').split(',').map(s => s.trim()).filter(Boolean);
 
   if (blacklist.includes(clientIp)) {
@@ -203,6 +199,14 @@ const ipGateMiddleware = async (req, res, next) => {
     req.isWhitelisted = true;
   }
 
+  next();
+};
+
+/** Admin whitelist middleware — authenticate ke baad run karo */
+const adminWhitelistMiddleware = (req, res, next) => {
+  if (req.user?.role === 'admin') {
+    req.isWhitelisted = true;
+  }
   next();
 };
 
@@ -233,4 +237,5 @@ module.exports = {
   endpointLimiter,
   auditLogger,
   createRateLimiter,
+  adminWhitelistMiddleware,
 };

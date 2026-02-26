@@ -1,13 +1,14 @@
 const express = require('express');
 const { authenticate, requireAdmin } = require('../middleware/auth');
-const { endpointLimiter, dynamicUserRateLimiter, ipRateLimiter } = require('../middleware/rateLimiter');
+const { endpointLimiter, dynamicUserRateLimiter, ipRateLimiter, adminWhitelistMiddleware } = require('../middleware/rateLimiter');
 const apiController = require('../controllers/apiController');
 const adminController = require('../controllers/adminController');
 
 const router = express.Router();
 
-// Order matters: auth first, then IP limit, then per-user limit
+// Order matters: auth first, then admin whitelist, then rate limits
 router.use(authenticate);
+router.use(adminWhitelistMiddleware);  // Admins bypass all rate limiting
 router.use(ipRateLimiter);
 router.use(dynamicUserRateLimiter);
 
