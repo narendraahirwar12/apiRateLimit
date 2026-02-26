@@ -1,82 +1,31 @@
 # 🛡️ API Rate Limiting & Abuse Prevention System — MVC Branch
 
-A production-ready API rate limiting system built with **Node.js + Express** following the **MVC (Model-View-Controller)** architecture. Uses a Redis Sliding Window algorithm for accurate rate limiting, JWT-based authentication, and progressive IP blocking.
+A production-ready Node.js API with **Sliding Window** rate limiting, JWT authentication, **Redis-based state storage**, and progressive abuse prevention — structured using the **MVC (Model-View-Controller)** pattern.
 
 ---
 
-## 📁 Project Structure
+## 📋 Tech Stack
 
-```
-apiRateLimit/
-├── src/
-│   ├── app.js                    # Entry point — Express app setup
-│   ├── config/
-│   │   └── database.js           # MongoDB connection
-│   ├── controllers/
-│   │   ├── authController.js     # Register / Login logic
-│   │   ├── apiController.js      # Profile, Data, Reports
-│   │   └── adminController.js    # Admin panel logic
-│   ├── middleware/
-│   │   ├── auth.js               # JWT authentication & role guard
-│   │   └── rateLimiter.js        # Core rate limiting logic (Redis)
-│   ├── models/
-│   │   ├── User.js               # User schema (Mongoose)
-│   │   ├── RateLimit.js          # Rate limit records
-│   │   └── AuditLog.js           # Request audit log schema
-│   ├── routes/
-│   │   ├── auth.js               # Auth routes
-│   │   └── api.js                # Protected API routes
-│   └── utils/
-│       └── logger.js             # Winston logger
-├── migrations/
-│   └── 0001_seed.js              # DB seed script
-├── logs/
-│   ├── combined.log
-│   └── error.log
-├── .env
-├── package.json
-└── README.md
-```
+| Layer       | Technology             |
+|-------------|------------------------|
+| Runtime     | Node.js                |
+| Framework   | Express.js             |
+| Database    | MongoDB (via Mongoose) |
+| Cache/State | **Redis (ioredis)**    |
+| Auth        | JWT (jsonwebtoken)     |
+| Password    | bcryptjs               |
+| Logging     | Winston                |
 
 ---
 
-## ⚙️ Tech Stack
+## 🚀 Quick Start
 
-| Technology | Purpose |
-|---|---|
-| Node.js + Express | Web framework |
-| MongoDB + Mongoose | Database & ORM |
-| Redis (ioredis) | Rate limit state storage |
-| JWT (jsonwebtoken) | Authentication |
-| bcryptjs | Password hashing |
-| Winston | Logging |
-| Nodemon | Dev hot-reload |
+### 1. Prerequisites
+- Node.js ≥ 18
+- MongoDB (local or Atlas)
+- **Redis** (local — `sudo apt install redis-server`)
 
----
-
-## 🚀 Getting Started
-
-### Step 1 — Prerequisites
-
-Make sure the following are installed and running:
-
-- **Node.js** >= 18
-- **MongoDB** — local instance or cloud URI
-- **Redis** — local instance or cloud
-
-Commands to start MongoDB and Redis locally:
-
-```bash
-# Start MongoDB (macOS/Linux)
-mongod --dbpath /data/db
-
-# Start Redis
-redis-server
-```
-
----
-
-### Step 2 — Clone & Switch Branch
+### 2. Clone & Switch Branch
 
 ```bash
 git clone <repo-url>
@@ -84,34 +33,26 @@ cd apiRateLimit
 git checkout mvc
 ```
 
----
-
-### Step 3 — Install Dependencies
+### 3. Install
 
 ```bash
 npm install
 ```
 
----
+### 4. Configure Environment
 
-### Step 4 — Environment Setup
-
-A `.env` file is already present in the root. Update it with your values:
+Edit `.env`:
 
 ```env
 PORT=3000
-
-# MongoDB
 MONGODB_URI=mongodb://localhost:27017/rate_limiter_db
-
-# JWT
 JWT_SECRET=your_super_secret_jwt_key_change_in_production
 JWT_EXPIRES_IN=24h
 
 # Redis
 REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
-REDIS_PASSWORD=           # Leave blank if no password
+REDIS_PASSWORD=
 
 # Rate Limits
 FREE_USER_LIMIT=100
@@ -125,713 +66,730 @@ MAX_VIOLATIONS_BEFORE_BLOCK=3
 BLOCK_DURATION_FIRST=300
 BLOCK_DURATION_SECOND=900
 
-# IP Control (comma-separated)
+# Whitelisted IPs (comma-separated) — leave empty for local testing
 WHITELISTED_IPS=
+
+# Blacklisted IPs (comma-separated)
 BLACKLISTED_IPS=
 ```
 
----
+### 5. Start Services
 
-### Step 5 — Seed the Database (First Time Only)
+```bash
+# Start MongoDB
+sudo systemctl start mongod
 
-Run the seed script to create test users:
+# Start Redis
+sudo systemctl start redis
+
+# Verify Redis
+redis-cli ping   # Should return: PONG
+```
+
+### 6. Seed Test Users
 
 ```bash
 node migrations/0001_seed.js
 ```
 
-Expected output:
+Creates 4 test users:
 
-```
-✅ Created: admin_user (admin)
-✅ Created: paid_user (paid)
-✅ Created: free_user (free)
-✅ Created: tenant_user (paid)
+| Username    | Email                 | Password    | Role  |
+|-------------|-----------------------|-------------|-------|
+| admin_user  | admin@example.com     | Admin@123   | admin |
+| paid_user   | paid@example.com      | Paid@1234   | paid  |
+| free_user   | free@example.com      | Free@1234   | free  |
+| tenant_user | tenant@example.com    | Tenant@123  | paid  |
 
-🎉 Seed complete! Test credentials:
-  Admin: admin@example.com / Admin@123
-  Paid:  paid@example.com  / Paid@1234
-  Free:  free@example.com  / Free@1234
-```
-
----
-
-### Step 6 — Start the Server
+### 7. Run
 
 ```bash
-# Development (auto-restart on file change)
+# Development (auto-reload)
 npm run dev
 
 # Production
 npm start
 ```
 
-You should see these logs when the server starts:
+Server starts at `http://localhost:3000`
 
+Expected startup output:
 ```
 ✅ Redis connected
-✅ MongoDB Connected: localhost
 🚀 Server running on http://localhost:3000
 📋 Rate limiting algorithm: Sliding Window
 🔐 JWT Authentication enabled
 🛡️  Abuse prevention: Progressive blocking enabled
+✅ MongoDB Connected: localhost
 ```
 
 ---
 
-## 📡 API Endpoints
+## 🔐 Authentication
 
-### Auth Routes
-
-| Method | Endpoint | Description | Rate Limit |
-|--------|----------|-------------|------------|
-| POST | `/api/auth/register` | Register a new user | — |
-| POST | `/api/auth/login` | Login and receive JWT | 10 req/min per IP |
-
-### Protected Routes *(JWT Bearer Token required)*
-
-| Method | Endpoint | Description | Rate Limit |
-|--------|----------|-------------|------------|
-| GET | `/api/profile` | Get user profile | Per-user limit |
-| GET | `/api/data` | Fetch data | Per-user limit |
-| POST | `/api/data` | Create data | Per-user limit |
-| GET | `/api/reports` | Get reports | 20 req/min per IP |
-
-### Admin Routes *(Admin JWT required)*
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/admin/audit-logs` | View all audit logs |
-| GET | `/api/admin/rate-limits` | View current rate limit state |
-| DELETE | `/api/admin/block/:key` | Unblock a user or IP |
-| POST | `/api/admin/blacklist` | Add an IP to the blacklist |
-
-### Utility
+All protected routes require a **Bearer JWT** in the Authorization header:
 
 ```
-GET /health    → Server health check
-GET /          → Overview of all endpoints and rate limits
+Authorization: Bearer <token>
+```
+
+Get a token via `POST /api/auth/login`.
+
+JWT payload contains:
+- `userId`
+- `role` (free | paid | admin)
+- `tenantId` (optional)
+
+---
+
+## ⚡ Rate Limiting Rules
+
+### Algorithm: Sliding Window (Redis Sorted Sets)
+
+Tracks exact timestamps of requests within a rolling time window (default: 60 seconds) using **Redis Sorted Sets**. More accurate than fixed-window — prevents burst exploitation at window boundaries.
+
+### Per-User Limits
+
+| Role  | Limit         |
+|-------|---------------|
+| free  | 100 req/min   |
+| paid  | 1,000 req/min |
+| admin | **Unlimited** |
+
+### Per-IP Limit
+- **200 requests/minute** per IP address
+- Applies even if the user is authenticated
+
+### Per-Endpoint Limits
+
+| Endpoint             | Limit      |
+|----------------------|------------|
+| POST /api/auth/login | 10 req/min |
+| GET /api/reports     | 20 req/min |
+
+---
+
+## 🚨 Abuse Prevention
+
+### Temporary Blocking (Progressive) — Stored in Redis
+
+When a user/IP exceeds the limit **3 times**:
+
+| Block # | Duration          |
+|---------|-------------------|
+| 1st     | 5 minutes  (300s) |
+| 2nd+    | 15 minutes (900s) |
+
+Block state is stored in Redis with TTL — auto-expires when block duration ends.
+
+### Whitelisting
+- Admin users bypass per-user rate limits
+- IPs in `WHITELISTED_IPS` (env) skip all rate limits
+
+### Blacklisting
+- IPs in `BLACKLISTED_IPS` (env) receive `403 Forbidden`
+- Admins can add IPs at runtime via `POST /api/admin/blacklist`
+
+---
+
+## 📡 Response Headers
+
+Every rate-limited response includes:
+
+```
+X-RateLimit-Limit:     100
+X-RateLimit-Remaining: 94
+X-RateLimit-Reset:     1735000060
+```
+
+When limit exceeded (`429 Too Many Requests`):
+
+```json
+{
+  "error": "Rate limit exceeded",
+  "retryAfter": 30
+}
+```
+
+When blocked:
+```json
+{
+  "error": "You are temporarily blocked due to repeated violations",
+  "retryAfter": 300
+}
 ```
 
 ---
 
-## 🔒 Rate Limiting Architecture
+## 📚 API Endpoints
 
-### Sliding Window Algorithm
+### Public
 
-Each request key maps to a Redis Sorted Set storing request timestamps. On every check, expired timestamps are pruned and the count within the current window is evaluated.
+| Method | Endpoint             | Description                   |
+|--------|----------------------|-------------------------------|
+| GET    | `/`                  | API info & rate limit summary |
+| GET    | `/health`            | Health check                  |
+| POST   | `/api/auth/register` | Register new user             |
+| POST   | `/api/auth/login`    | Login (10 req/min)            |
 
-### Limit Tiers
+### Protected (requires Bearer JWT)
 
-| User Type | Limit | Window |
-|-----------|-------|--------|
-| Free User | 100 req | 1 min |
-| Paid User | 1000 req | 1 min |
-| Admin | Unlimited | — |
-| Per IP | 200 req | 1 min |
-| Login Endpoint | 10 req | 1 min |
-| Reports Endpoint | 20 req | 1 min |
+| Method | Endpoint        | Description                         |
+|--------|-----------------|-------------------------------------|
+| GET    | `/api/profile`  | Get current user profile            |
+| GET    | `/api/reports`  | Reports (20 req/min endpoint limit) |
+| GET    | `/api/data`     | Generic protected data              |
+| POST   | `/api/data`     | Create data                         |
 
-### Progressive Blocking
+### Admin Only
 
-```
-3 violations       →  1st block: 5 minutes
-Repeated violations  →  2nd block: 15 minutes
-```
-
-### IP Control
-
-- **Whitelist** — Bypasses all rate limiting (set in `.env`)
-- **Blacklist** — Returns 403 Access Denied (can also be added at runtime via Admin API)
-
----
-
-## 📊 Response Headers
-
-Every response includes these headers:
-
-```
-X-RateLimit-Limit: 100
-X-RateLimit-Remaining: 95
-X-RateLimit-Reset: 1700000000
-Retry-After: 30      ← only present on 429 responses
-```
+| Method | Endpoint                 | Description                |
+|--------|--------------------------|----------------------------|
+| GET    | `/api/admin/audit-logs`  | View all audit logs        |
+| GET    | `/api/admin/rate-limits` | View rate limit state      |
+| DELETE | `/api/admin/block/:key`  | Unblock a user/IP          |
+| POST   | `/api/admin/blacklist`   | Blacklist an IP at runtime |
 
 ---
 
-## 📝 NPM Scripts
+## 🧪 Testing
+
+### Step 1 — Get All Tokens
 
 ```bash
-npm run dev    # nodemon — development with auto-restart
-npm start      # node — production
+# Free user token
+FREE_TOKEN=$(curl -s -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"free@example.com","password":"Free@1234"}' | \
+  python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
+
+# Paid user token
+PAID_TOKEN=$(curl -s -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"paid@example.com","password":"Paid@1234"}' | \
+  python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
+
+# Admin token
+ADMIN_TOKEN=$(curl -s -X POST http://localhost:3000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@example.com","password":"Admin@123"}' | \
+  python3 -c "import sys,json; print(json.load(sys.stdin)['token'])")
+
+echo "FREE:  $FREE_TOKEN"
+echo "PAID:  $PAID_TOKEN"
+echo "ADMIN: $ADMIN_TOKEN"
 ```
 
 ---
 
-## 🧪 Complete API Testing — cURL Commands
+### Step 2 — Auth Tests
 
-> ⚠️ **Tip:** After logging in, copy the `token` from the response and replace `$TOKEN` / `$ADMIN_TOKEN` in the commands below, or use the shell variable approach shown.
-
----
-
-### 1️⃣ Health & Info Check
-
+**Register a new user:**
 ```bash
-# Server health check
-curl http://localhost:3000/health
-
-# Expected Response:
-# { "status": "ok", "timestamp": "...", "service": "API Rate Limiter" }
-```
-
-```bash
-# Root — overview of all endpoints
-curl http://localhost:3000/
-
-# Expected Response:
-# { "message": "API Rate Limiting & Abuse Prevention System", "endpoints": {...}, "rateLimits": {...} }
-```
-
----
-
-### 2️⃣ Auth — Register
-
-**Register a new free user:**
-```bash
-curl -X POST http://localhost:3000/api/auth/register \
+curl -s -X POST http://localhost:3000/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{"username":"testuser","email":"test@example.com","password":"Test@1234"}'
-
-# Expected Response (201):
-# { "message": "User registered successfully", "token": "eyJ...", "user": { "id": "...", "username": "testuser", "email": "test@example.com", "role": "free" } }
+# Expected (201): { "message": "User registered successfully", "token": "eyJ...", "user": {...} }
 ```
 
-**Register with a paid role:**
+**Register with paid role:**
 ```bash
-curl -X POST http://localhost:3000/api/auth/register \
+curl -s -X POST http://localhost:3000/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{"username":"paiduser2","email":"paid2@example.com","password":"Paid@1234","role":"paid"}'
 ```
 
 **Duplicate email — conflict test:**
 ```bash
-curl -X POST http://localhost:3000/api/auth/register \
+curl -s -X POST http://localhost:3000/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{"username":"testuser","email":"test@example.com","password":"Test@1234"}'
-
-# Expected Response (409):
-# { "error": "Username or email already exists" }
+# Expected (409): { "error": "Username or email already exists" }
 ```
 
 **Missing fields — validation test:**
 ```bash
-curl -X POST http://localhost:3000/api/auth/register \
+curl -s -X POST http://localhost:3000/api/auth/register \
   -H "Content-Type: application/json" \
   -d '{"email":"nopassword@example.com"}'
-
-# Expected Response (400):
-# { "error": "username, email, and password are required" }
+# Expected (400): { "error": "username, email, and password are required" }
 ```
 
----
-
-### 3️⃣ Auth — Login
-
-**Admin login (from seed):**
+**Wrong password:**
 ```bash
-curl -X POST http://localhost:3000/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"admin@example.com","password":"Admin@123"}'
-
-# Expected Response (200):
-# { "message": "Login successful", "token": "eyJ...", "user": { "role": "admin", ... } }
-```
-
-**Paid user login:**
-```bash
-curl -X POST http://localhost:3000/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"paid@example.com","password":"Paid@1234"}'
-```
-
-**Free user login:**
-```bash
-curl -X POST http://localhost:3000/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"free@example.com","password":"Free@1234"}'
-```
-
-**Wrong password — unauthorized test:**
-```bash
-curl -X POST http://localhost:3000/api/auth/login \
+curl -s -X POST http://localhost:3000/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"admin@example.com","password":"WrongPassword"}'
-
-# Expected Response (401):
-# { "error": "Invalid email or password" }
-```
-
-**Rate limit test — more than 10 login attempts:**
-```bash
-for i in {1..12}; do
-  echo "Attempt $i:"
-  curl -s -X POST http://localhost:3000/api/auth/login \
-    -H "Content-Type: application/json" \
-    -d '{"email":"admin@example.com","password":"wrong"}' | jq .
-done
-
-# After the 11th request, Expected Response (429):
-# { "error": "Rate limit exceeded", "retryAfter": 30 }
+# Expected (401): { "error": "Invalid email or password" }
 ```
 
 ---
 
-### 4️⃣ Protected Routes
+### Step 3 — Free User Tests
 
-> First, log in and save the token as a shell variable:
-> ```bash
-> TOKEN=$(curl -s -X POST http://localhost:3000/api/auth/login \
->   -H "Content-Type: application/json" \
->   -d '{"email":"free@example.com","password":"Free@1234"}' | jq -r '.token')
-> ```
-
-**Get Profile:**
+**Get profile:**
 ```bash
-curl http://localhost:3000/api/profile \
-  -H "Authorization: Bearer $TOKEN"
-
-# Expected Response (200):
-# { "message": "User profile", "user": { "userId": "...", "role": "free", "username": "free_user" } }
-```
-
-**Get Data:**
-```bash
-curl http://localhost:3000/api/data \
-  -H "Authorization: Bearer $TOKEN"
-
-# Expected Response (200):
-# { "message": "Protected data", "timestamp": "...", "user": {...} }
-```
-
-**Post Data:**
-```bash
-curl -X POST http://localhost:3000/api/data \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"title":"My Record","value":42}'
-
-# Expected Response (201):
-# { "message": "Data created", "payload": { "title": "My Record", "value": 42 }, "createdBy": {...} }
-```
-
-**Get Reports:**
-```bash
-curl http://localhost:3000/api/reports \
-  -H "Authorization: Bearer $TOKEN"
-
-# Expected Response (200):
-# { "message": "Reports data", "data": [ { "id": 1, "title": "Monthly Sales" }, ... ] }
-```
-
-**Without token — unauthorized test:**
-```bash
-curl http://localhost:3000/api/profile
-
-# Expected Response (401):
-# { "error": "No token provided" }
-```
-
-**Invalid token — error test:**
-```bash
-curl http://localhost:3000/api/profile \
-  -H "Authorization: Bearer invalidtokenhere"
-
-# Expected Response (401):
-# { "error": "Invalid token" }
-```
-
----
-
-### 5️⃣ Admin Routes
-
-> These routes only work with an admin token:
-> ```bash
-> ADMIN_TOKEN=$(curl -s -X POST http://localhost:3000/api/auth/login \
->   -H "Content-Type: application/json" \
->   -d '{"email":"admin@example.com","password":"Admin@123"}' | jq -r '.token')
-> ```
-
-**View Audit Logs:**
-```bash
-curl "http://localhost:3000/api/admin/audit-logs" \
-  -H "Authorization: Bearer $ADMIN_TOKEN"
-
-# Expected Response (200):
-# { "total": 25, "page": 1, "limit": 50, "logs": [...] }
-```
-
-**Audit Logs — with pagination:**
-```bash
-curl "http://localhost:3000/api/admin/audit-logs?limit=10&page=2" \
-  -H "Authorization: Bearer $ADMIN_TOKEN"
-```
-
-**Audit Logs — filter by IP:**
-```bash
-curl "http://localhost:3000/api/admin/audit-logs?ip=::1" \
-  -H "Authorization: Bearer $ADMIN_TOKEN"
-```
-
-**View Rate Limit State:**
-```bash
-curl "http://localhost:3000/api/admin/rate-limits" \
-  -H "Authorization: Bearer $ADMIN_TOKEN"
-
-# Expected Response (200):
-# { "count": 5, "records": [...] }
-```
-
-**Add IP to Blacklist:**
-```bash
-curl -X POST http://localhost:3000/api/admin/blacklist \
-  -H "Authorization: Bearer $ADMIN_TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"ip":"192.168.1.100"}'
-
-# Expected Response (200):
-# { "message": "IP 192.168.1.100 blacklisted", "blacklist": ["192.168.1.100"] }
-```
-
-**Unblock a User or IP:**
-```bash
-# Key format: "user:<userId>" or "ip:<ip>"
-curl -X DELETE "http://localhost:3000/api/admin/block/ip%3A192.168.1.50" \
-  -H "Authorization: Bearer $ADMIN_TOKEN"
-
-# Expected Response (200):
-# { "message": "Block removed for key: ip:192.168.1.50" }
-```
-
-**Access admin route as non-admin — forbidden test:**
-```bash
-FREE_TOKEN=$(curl -s -X POST http://localhost:3000/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"free@example.com","password":"Free@1234"}' | jq -r '.token')
-
-curl "http://localhost:3000/api/admin/audit-logs" \
+curl -s http://localhost:3000/api/profile \
   -H "Authorization: Bearer $FREE_TOKEN"
-
-# Expected Response (403):
-# { "error": "Admin access required" }
+# Expected (200): { "message": "User profile", "user": { "role": "free", ... } }
 ```
 
----
-
-### 6️⃣ Rate Limit Headers Check
-
+**Get data:**
 ```bash
-# Use -v flag to inspect response headers
-curl -v http://localhost:3000/api/profile \
-  -H "Authorization: Bearer $TOKEN" 2>&1 | grep -i "x-ratelimit\|retry-after"
+curl -s http://localhost:3000/api/data \
+  -H "Authorization: Bearer $FREE_TOKEN"
+# Expected (200): { "message": "Protected data", ... }
+```
 
-# Expected Headers:
+**Post data:**
+```bash
+curl -s -X POST http://localhost:3000/api/data \
+  -H "Authorization: Bearer $FREE_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Free User Record","value":10}'
+# Expected (201): { "message": "Data created", "payload": {...}, "createdBy": { "role": "free", ... } }
+```
+
+**Get reports:**
+```bash
+curl -s http://localhost:3000/api/reports \
+  -H "Authorization: Bearer $FREE_TOKEN"
+# Expected (200): { "message": "Reports data", "data": [...] }
+```
+
+**Check rate limit headers (limit should be 100):**
+```bash
+curl -s -I http://localhost:3000/api/data \
+  -H "Authorization: Bearer $FREE_TOKEN" | grep -i "x-ratelimit"
+# Expected:
 # X-RateLimit-Limit: 100
 # X-RateLimit-Remaining: 99
-# X-RateLimit-Reset: 1700000000
+# X-RateLimit-Reset: ...
 ```
 
----
-
-### 7️⃣ Rate Limit Exceed Test
-
-**Test free user limit (100 req/min):**
+**Free user cannot access admin routes:**
 ```bash
-FREE_TOKEN=$(curl -s -X POST http://localhost:3000/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"free@example.com","password":"Free@1234"}' | jq -r '.token')
+curl -s http://localhost:3000/api/admin/audit-logs \
+  -H "Authorization: Bearer $FREE_TOKEN"
+# Expected (403): { "error": "Admin access required" }
+```
 
-for i in {1..105}; do
+**Free user rate limit test (100 req/min):**
+```bash
+redis-cli flushdb
+for i in $(seq 1 110); do
   STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/data \
     -H "Authorization: Bearer $FREE_TOKEN")
-  echo "Request $i: HTTP $STATUS"
+  echo "Request $i: $STATUS"
+  [ "$STATUS" == "429" ] && echo "❌ BLOCKED at $i!" && break
 done
-
-# After the 101st request:
-# Request 101: HTTP 429
+# Expected: blocked at request 101
 ```
 
 ---
 
-### 8️⃣ 404 Route Test
+### Step 4 — Paid User Tests
 
+**Get profile (verify role is "paid"):**
 ```bash
-curl http://localhost:3000/api/nonexistent
-
-# Expected Response (404):
-# { "error": "Route GET /api/nonexistent not found" }
-```
-
----
-
-### 9️⃣ Paid User — Full Flow Test
-
-> Paid users have a higher rate limit (1000 req/min) compared to free users (100 req/min).
-
-**Step 1 — Login as paid user and save token:**
-```bash
-PAID_TOKEN=$(curl -s -X POST http://localhost:3000/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"paid@example.com","password":"Paid@1234"}' | jq -r '.token')
-
-echo "Paid Token: $PAID_TOKEN"
-```
-
-**Step 2 — Get Profile (verify role is "paid"):**
-```bash
-curl http://localhost:3000/api/profile \
+curl -s http://localhost:3000/api/profile \
   -H "Authorization: Bearer $PAID_TOKEN"
-
-# Expected Response (200):
-# { "message": "User profile", "user": { "userId": "...", "role": "paid", "username": "paid_user" } }
+# Expected (200): { "message": "User profile", "user": { "role": "paid", ... } }
 ```
 
-**Step 3 — Get Data:**
+**Get data:**
 ```bash
-curl http://localhost:3000/api/data \
+curl -s http://localhost:3000/api/data \
   -H "Authorization: Bearer $PAID_TOKEN"
-
-# Expected Response (200):
-# { "message": "Protected data", "timestamp": "...", "user": { "role": "paid", ... } }
+# Expected (200): { "message": "Protected data", "user": { "role": "paid", ... } }
 ```
 
-**Step 4 — Post Data:**
+**Post data:**
 ```bash
-curl -X POST http://localhost:3000/api/data \
+curl -s -X POST http://localhost:3000/api/data \
   -H "Authorization: Bearer $PAID_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"title":"Paid User Record","value":999}'
-
-# Expected Response (201):
-# { "message": "Data created", "payload": { "title": "Paid User Record", "value": 999 }, "createdBy": { "role": "paid", ... } }
+# Expected (201): { "message": "Data created", "payload": {...}, "createdBy": { "role": "paid", ... } }
 ```
 
-**Step 5 — Get Reports:**
+**Get reports:**
 ```bash
-curl http://localhost:3000/api/reports \
+curl -s http://localhost:3000/api/reports \
   -H "Authorization: Bearer $PAID_TOKEN"
-
-# Expected Response (200):
-# { "message": "Reports data", "data": [ { "id": 1, "title": "Monthly Sales" }, ... ] }
+# Expected (200): { "message": "Reports data", "data": [...] }
 ```
 
-**Step 6 — Check rate limit headers (should show limit: 1000):**
+**Check rate limit headers (limit should be 1000):**
 ```bash
-curl -v http://localhost:3000/api/data \
-  -H "Authorization: Bearer $PAID_TOKEN" 2>&1 | grep -i "x-ratelimit"
-
-# Expected Headers:
+curl -s -I http://localhost:3000/api/data \
+  -H "Authorization: Bearer $PAID_TOKEN" | grep -i "x-ratelimit"
+# Expected:
 # X-RateLimit-Limit: 1000
 # X-RateLimit-Remaining: 999
-# X-RateLimit-Reset: 1700000000
+# X-RateLimit-Reset: ...
 ```
 
-**Step 7 — Verify paid user CANNOT access admin routes:**
+**Paid user cannot access admin routes:**
 ```bash
-curl "http://localhost:3000/api/admin/audit-logs" \
+curl -s http://localhost:3000/api/admin/audit-logs \
   -H "Authorization: Bearer $PAID_TOKEN"
-
-# Expected Response (403):
-# { "error": "Admin access required" }
+# Expected (403): { "error": "Admin access required" }
 ```
 
-**Step 8 — Paid user rate limit stress test (1000 req/min limit):**
+**Paid user rate limit test (1000 req/min):**
 ```bash
-for i in {1..20}; do
+redis-cli flushdb
+for i in $(seq 1 1010); do
   STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/data \
     -H "Authorization: Bearer $PAID_TOKEN")
-  echo "Request $i: HTTP $STATUS"
+  echo "Request $i: $STATUS"
+  [ "$STATUS" == "429" ] && echo "❌ BLOCKED at $i!" && break
 done
-
-# All 20 requests should return HTTP 200 (paid limit is 1000/min)
+# Expected: blocked at request 1001
 ```
 
 ---
 
-### 🔟 Admin User — Full Flow Test
+### Step 5 — Admin User Tests
 
-> Admin users have unlimited rate limit and exclusive access to audit logs, rate limit state, blocking, and blacklisting.
-
-**Step 1 — Login as admin and save token:**
+**Get profile (verify role is "admin"):**
 ```bash
-ADMIN_TOKEN=$(curl -s -X POST http://localhost:3000/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"admin@example.com","password":"Admin@123"}' | jq -r '.token')
-
-echo "Admin Token: $ADMIN_TOKEN"
-```
-
-**Step 2 — Get Profile (verify role is "admin"):**
-```bash
-curl http://localhost:3000/api/profile \
+curl -s http://localhost:3000/api/profile \
   -H "Authorization: Bearer $ADMIN_TOKEN"
-
-# Expected Response (200):
-# { "message": "User profile", "user": { "userId": "...", "role": "admin", "username": "admin_user" } }
+# Expected (200): { "message": "User profile", "user": { "role": "admin", ... } }
 ```
 
-**Step 3 — Get Data:**
+**Get data:**
 ```bash
-curl http://localhost:3000/api/data \
+curl -s http://localhost:3000/api/data \
   -H "Authorization: Bearer $ADMIN_TOKEN"
-
-# Expected Response (200):
-# { "message": "Protected data", "timestamp": "...", "user": { "role": "admin", ... } }
+# Expected (200): { "message": "Protected data", "user": { "role": "admin", ... } }
 ```
 
-**Step 4 — Post Data:**
+**Post data:**
 ```bash
-curl -X POST http://localhost:3000/api/data \
+curl -s -X POST http://localhost:3000/api/data \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"title":"Admin Record","value":1}'
-
-# Expected Response (201):
-# { "message": "Data created", "payload": { "title": "Admin Record", "value": 1 }, "createdBy": { "role": "admin", ... } }
+# Expected (201): { "message": "Data created", "payload": {...}, "createdBy": { "role": "admin", ... } }
 ```
 
-**Step 5 — View all audit logs:**
+**View audit logs:**
 ```bash
-curl "http://localhost:3000/api/admin/audit-logs" \
-  -H "Authorization: Bearer $ADMIN_TOKEN"
-
-# Expected Response (200):
-# { "total": 30, "page": 1, "limit": 50, "logs": [...] }
+curl -s http://localhost:3000/api/admin/audit-logs \
+  -H "Authorization: Bearer $ADMIN_TOKEN" | \
+  python3 -c "import sys,json; data=json.load(sys.stdin); print('Total logs:', data['total'])"
+# Expected: Total logs: <number>
 ```
 
-**Step 6 — View audit logs with pagination:**
+**Audit logs with pagination:**
 ```bash
-curl "http://localhost:3000/api/admin/audit-logs?limit=5&page=1" \
+curl -s "http://localhost:3000/api/admin/audit-logs?limit=5&page=1" \
   -H "Authorization: Bearer $ADMIN_TOKEN"
 ```
 
-**Step 7 — Filter audit logs by IP:**
+**Filter audit logs by IP:**
 ```bash
-curl "http://localhost:3000/api/admin/audit-logs?ip=::1" \
+curl -s "http://localhost:3000/api/admin/audit-logs?ip=::1" \
   -H "Authorization: Bearer $ADMIN_TOKEN"
 ```
 
-**Step 8 — View current rate limit state:**
+**View rate limit state:**
 ```bash
-curl "http://localhost:3000/api/admin/rate-limits" \
+curl -s http://localhost:3000/api/admin/rate-limits \
   -H "Authorization: Bearer $ADMIN_TOKEN"
-
-# Expected Response (200):
-# { "count": 8, "records": [ { "key": "ip:::1", ... }, { "key": "user:...", ... } ] }
+# Expected (200): { "count": <n>, "records": [...] }
 ```
 
-**Step 9 — Add an IP to the blacklist:**
+**Blacklist an IP:**
 ```bash
-curl -X POST http://localhost:3000/api/admin/blacklist \
+curl -s -X POST http://localhost:3000/api/admin/blacklist \
   -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{"ip":"10.0.0.5"}'
-
-# Expected Response (200):
-# { "message": "IP 10.0.0.5 blacklisted", "blacklist": ["10.0.0.5"] }
+# Expected (200): { "message": "IP 10.0.0.5 blacklisted", "blacklist": ["10.0.0.5"] }
 ```
 
-**Step 10 — Unblock a previously blocked user or IP:**
+**Unblock a user or IP:**
 ```bash
-# Unblock by IP key
-curl -X DELETE "http://localhost:3000/api/admin/block/ip%3A10.0.0.5" \
+# By IP key
+curl -s -X DELETE "http://localhost:3000/api/admin/block/ip%3A10.0.0.5" \
   -H "Authorization: Bearer $ADMIN_TOKEN"
+# Expected (200): { "message": "Block removed for key: ip:10.0.0.5" }
 
-# Expected Response (200):
-# { "message": "Block removed for key: ip:10.0.0.5" }
-```
-
-**Step 11 — Unblock by user ID key:**
-```bash
-# Replace <userId> with an actual MongoDB ObjectId from your DB
-curl -X DELETE "http://localhost:3000/api/admin/block/user%3A<userId>" \
+# By user ID key (replace <userId> with actual MongoDB ObjectId)
+curl -s -X DELETE "http://localhost:3000/api/admin/block/user%3A<userId>" \
   -H "Authorization: Bearer $ADMIN_TOKEN"
-
-# Expected Response (200):
-# { "message": "Block removed for key: user:<userId>" }
+# Expected (200): { "message": "Block removed for key: user:<userId>" }
 ```
 
-**Step 12 — Admin rate limit stress test (unlimited):**
+**Admin rate limit stress test (unlimited — no 429):**
 ```bash
-for i in {1..20}; do
+redis-cli flushdb
+for i in $(seq 1 20); do
   STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/data \
     -H "Authorization: Bearer $ADMIN_TOKEN")
-  echo "Request $i: HTTP $STATUS"
+  echo "Request $i: $STATUS"
 done
-
-# All 20 requests should return HTTP 200 (admin has no rate limit)
+# Expected: all 20 requests return HTTP 200
 ```
 
-**Step 13 — Compare all three roles side by side:**
+---
+
+### Step 6 — IP Rate Limit Test (200 req/min) — Use Admin Token
+
 ```bash
-FREE_TOKEN=$(curl -s -X POST http://localhost:3000/api/auth/login \
+redis-cli flushdb
+for i in $(seq 1 210); do
+  STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/data \
+    -H "Authorization: Bearer $ADMIN_TOKEN")
+  echo "Request $i: $STATUS"
+  [ "$STATUS" == "429" ] && echo "❌ IP BLOCKED at $i!" && break
+done
+# Expected: blocked at request 201
+```
+
+---
+
+### Step 7 — Login Endpoint Limit (10 req/min)
+
+```bash
+redis-cli flushdb
+for i in $(seq 1 13); do
+  STATUS=$(curl -s -o /dev/null -w "%{http_code}" -X POST http://localhost:3000/api/auth/login \
+    -H "Content-Type: application/json" \
+    -d '{"email":"free@example.com","password":"Free@1234"}')
+  echo "Attempt $i: $STATUS"
+  [ "$STATUS" == "429" ] && echo "❌ BLOCKED at $i!" && break
+done
+# Expected: blocked at attempt 11
+```
+
+---
+
+### Step 8 — Reports Endpoint Limit (20 req/min)
+
+```bash
+redis-cli flushdb
+for i in $(seq 1 23); do
+  STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/reports \
+    -H "Authorization: Bearer $ADMIN_TOKEN")
+  echo "Request $i: $STATUS"
+  [ "$STATUS" == "429" ] && echo "❌ BLOCKED at $i!" && break
+done
+# Expected: blocked at request 21
+```
+
+---
+
+### Step 9 — Progressive Blocking Test
+
+```bash
+redis-cli flushdb
+# After 3 violations, user gets blocked for 5 minutes (retryAfter: 300)
+for violation in 1 2 3; do
+  echo "--- Violation $violation ---"
+  sleep 62
+  for i in $(seq 1 110); do
+    STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/api/data \
+      -H "Authorization: Bearer $FREE_TOKEN")
+    if [ "$STATUS" == "429" ]; then
+      curl -s http://localhost:3000/api/data -H "Authorization: Bearer $FREE_TOKEN"
+      break
+    fi
+  done
+done
+# Expected: after violation 3 → {"error":"You are temporarily blocked...","retryAfter":300}
+```
+
+---
+
+### Step 10 — Blacklist IP Test
+
+```bash
+# Blacklist localhost IP
+curl -s -X POST http://localhost:3000/api/admin/blacklist \
+  -H "Authorization: Bearer $ADMIN_TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"email":"free@example.com","password":"Free@1234"}' | jq -r '.token')
+  -d '{"ip":"::1"}'
 
-PAID_TOKEN=$(curl -s -X POST http://localhost:3000/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"paid@example.com","password":"Paid@1234"}' | jq -r '.token')
+# Verify — should get 403
+curl -s http://localhost:3000/health
+# Expected: { "error": "Access denied" }
 
-ADMIN_TOKEN=$(curl -s -X POST http://localhost:3000/api/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"admin@example.com","password":"Admin@123"}' | jq -r '.token')
+# To unblacklist: restart the server (runtime-only blacklist)
+```
 
-echo "--- Free User ---"
+---
+
+### Step 11 — Compare All Three Roles Side by Side
+
+```bash
+echo "--- Free User (limit: 100) ---"
 curl -s -I http://localhost:3000/api/data \
-  -H "Authorization: Bearer $FREE_TOKEN" 2>&1 | grep -i "x-ratelimit-limit"
+  -H "Authorization: Bearer $FREE_TOKEN" | grep -i "x-ratelimit-limit"
 
-echo "--- Paid User ---"
+echo "--- Paid User (limit: 1000) ---"
 curl -s -I http://localhost:3000/api/data \
-  -H "Authorization: Bearer $PAID_TOKEN" 2>&1 | grep -i "x-ratelimit-limit"
+  -H "Authorization: Bearer $PAID_TOKEN" | grep -i "x-ratelimit-limit"
 
-echo "--- Admin User ---"
+echo "--- Admin User (unlimited) ---"
 curl -s -I http://localhost:3000/api/data \
-  -H "Authorization: Bearer $ADMIN_TOKEN" 2>&1 | grep -i "x-ratelimit-limit"
+  -H "Authorization: Bearer $ADMIN_TOKEN" | grep -i "x-ratelimit-limit"
 
 # Expected Output:
-# --- Free User ---
+# --- Free User (limit: 100) ---
 # X-RateLimit-Limit: 100
-# --- Paid User ---
+# --- Paid User (limit: 1000) ---
 # X-RateLimit-Limit: 1000
-# --- Admin User ---
+# --- Admin User (unlimited) ---
 # (no rate limit header — admin bypasses limiter)
 ```
 
 ---
 
-## 🏗️ MVC Flow
+### Step 12 — Audit Logs After All Tests
+
+```bash
+curl -s http://localhost:3000/api/admin/audit-logs \
+  -H "Authorization: Bearer $ADMIN_TOKEN" | \
+  python3 -c "import sys,json; data=json.load(sys.stdin); print('Total logs:', data['total'])"
+# Expected: large number of logs from all tests above
+```
+
+---
+
+### Step 13 — Unauthorized & Edge Case Tests
+
+**No token:**
+```bash
+curl -s http://localhost:3000/api/profile
+# Expected (401): { "error": "No token provided" }
+```
+
+**Invalid token:**
+```bash
+curl -s http://localhost:3000/api/profile \
+  -H "Authorization: Bearer invalidtokenhere"
+# Expected (401): { "error": "Invalid token" }
+```
+
+**404 route:**
+```bash
+curl -s http://localhost:3000/api/nonexistent
+# Expected (404): { "error": "Route GET /api/nonexistent not found" }
+```
+
+**Health check:**
+```bash
+curl -s http://localhost:3000/health
+# Expected (200): { "status": "ok", "timestamp": "...", "service": "API Rate Limiter" }
+```
+
+**Root endpoint:**
+```bash
+curl -s http://localhost:3000/
+# Expected (200): { "message": "API Rate Limiting & Abuse Prevention System", "endpoints": {...}, "rateLimits": {...} }
+```
+
+---
+
+### ✅ Test Results Summary
+
+| Test                   | Expected             | Status  |
+|------------------------|----------------------|---------|
+| Free User Limit        | Block at req 101     | ✅ Pass |
+| Paid User Limit        | Block at req 1001    | ✅ Pass |
+| Admin Unlimited        | No block             | ✅ Pass |
+| IP Rate Limit          | Block at req 201     | ✅ Pass |
+| Login Endpoint         | Block at attempt 11  | ✅ Pass |
+| Reports Endpoint       | Block at req 21      | ✅ Pass |
+| Progressive Block      | retryAfter: 300      | ✅ Pass |
+| Blacklist IP           | 403 Access denied    | ✅ Pass |
+| Audit Logs             | Logs stored in DB    | ✅ Pass |
+| Redis Storage          | Block state in Redis | ✅ Pass |
+| X-RateLimit Headers    | Headers present      | ✅ Pass |
+
+---
+
+## 🏗️ Architecture
 
 ```
-Request
-  │
-  ▼
-ipGateMiddleware  (blacklist / whitelist check)
-  │
-  ▼
-auditLogger  (logs all responses)
-  │
-  ▼
-Routes  (auth.js / api.js)
-  │
-  ├─ authenticate  (JWT verify)
-  ├─ ipRateLimiter
-  └─ dynamicUserRateLimiter
-  │
-  ▼
-Controllers  (authController / apiController / adminController)
-  │
-  ▼
-Models  (User / RateLimit / AuditLog)
-  │
-  ▼
-MongoDB + Redis
+src/
+├── app.js                    # Express entry point
+├── config/
+│   └── database.js           # MongoDB connection
+├── controllers/
+│   ├── authController.js     # Register / Login logic
+│   ├── apiController.js      # Profile, Data, Reports
+│   └── adminController.js    # Admin panel logic
+├── middleware/
+│   ├── auth.js               # JWT authentication middleware
+│   └── rateLimiter.js        # Sliding window (Redis) + blocking logic
+├── models/
+│   ├── User.js               # User schema
+│   ├── AuditLog.js           # Audit log schema (auto-expires 30d)
+│   └── RateLimit.js          # Rate limit model
+├── routes/
+│   ├── auth.js               # /api/auth/*
+│   └── api.js                # /api/* (protected)
+└── utils/
+    └── logger.js             # Winston logger
+migrations/
+└── 0001_seed.js              # Test data seeder
+logs/
+├── combined.log
+└── error.log
 ```
+
+### Redis Key Structure
+
+| Key Pattern                        | Purpose                                         |
+|------------------------------------|-------------------------------------------------|
+| `user:<userId>`                    | Sliding window timestamps (Sorted Set)          |
+| `ip:<ipAddress>`                   | IP sliding window timestamps (Sorted Set)       |
+| `endpoint:<method>:<path>:<ip>`    | Endpoint sliding window (Sorted Set)            |
+| `violations:<key>`                 | Violation counter (expires with window)         |
+| `blocked:<key>`                    | Block flag with TTL (auto-expires)              |
+| `blockcount:<key>`                 | Total block count for progressive penalty       |
+
+---
+
+## 📊 Audit Logging
+
+Every request is logged to MongoDB (`AuditLog` collection) with:
+- `userId` — authenticated user (if any)
+- `ip` — client IP
+- `endpoint` — request path
+- `method` — HTTP method
+- `statusCode` — response status
+- `limitExceededReason` — why the request was blocked (if applicable)
+- `timestamp` — request time
+
+Logs auto-expire after **30 days** via MongoDB TTL index.
+
+---
+
+## ⚙️ Environment Variables
+
+| Variable                    | Default                                      | Description                       |
+|-----------------------------|----------------------------------------------|-----------------------------------|
+| `PORT`                      | 3000                                         | Server port                       |
+| `MONGODB_URI`               | `mongodb://localhost:27017/rate_limiter_db`  | MongoDB connection                |
+| `JWT_SECRET`                | —                                            | JWT signing secret (required)     |
+| `JWT_EXPIRES_IN`            | `24h`                                        | Token expiry                      |
+| `REDIS_HOST`                | `127.0.0.1`                                  | Redis host                        |
+| `REDIS_PORT`                | `6379`                                       | Redis port                        |
+| `REDIS_PASSWORD`            | —                                            | Redis password (if any)           |
+| `FREE_USER_LIMIT`           | 100                                          | Free user req/min                 |
+| `PAID_USER_LIMIT`           | 1000                                         | Paid user req/min                 |
+| `IP_LIMIT`                  | 200                                          | Per-IP req/min                    |
+| `LOGIN_ENDPOINT_LIMIT`      | 10                                           | Login endpoint req/min            |
+| `REPORTS_ENDPOINT_LIMIT`    | 20                                           | Reports endpoint req/min          |
+| `MAX_VIOLATIONS_BEFORE_BLOCK` | 3                                          | Violations before blocking        |
+| `BLOCK_DURATION_FIRST`      | 300                                          | First block duration (seconds)    |
+| `BLOCK_DURATION_SECOND`     | 900                                          | Subsequent block duration (seconds)|
+| `WHITELISTED_IPS`           | —                                            | Comma-separated whitelisted IPs   |
+| `BLACKLISTED_IPS`           | —                                            | Comma-separated blacklisted IPs   |
